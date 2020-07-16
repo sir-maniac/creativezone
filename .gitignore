@@ -2,6 +2,7 @@
 *.ipr
 *.iws
 
+build
 out
 run
 
