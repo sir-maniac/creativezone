@@ -75,7 +75,7 @@ public class CreativeZoneMod {
     @Mod.EventHandler
     public void onServerStarted(FMLServerStartingEvent e)
     {
-        e.registerServerCommand(new Commands());
+        e.registerServerCommand(new CreativeZoneCommands());
     }
 
     public static class EventHandler {

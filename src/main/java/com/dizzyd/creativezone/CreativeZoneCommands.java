@@ -7,9 +7,9 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.server.command.CommandTreeBase;
 
-public class Commands extends CommandTreeBase {
+public class CreativeZoneCommands extends CommandTreeBase {
 
-    public Commands() {
+    public CreativeZoneCommands() {
         addSubcommand(new RadiusCmd());
         addSubcommand(new WhitelistCmd());
     }
