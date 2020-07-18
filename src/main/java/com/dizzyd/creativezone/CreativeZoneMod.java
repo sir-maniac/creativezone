@@ -17,65 +17,55 @@
 
 package com.dizzyd.creativezone;
 
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.GameType;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.config.Configuration;
-import net.minecraftforge.common.config.Property;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.JarVersionLookupHandler;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.io.File;
 import java.time.Instant;
 import java.util.HashSet;
 
-@Mod(modid = CreativeZoneMod.MODID, version = CreativeZoneMod.VERSION)
+@Mod(CreativeZoneMod.MODID)
 public class CreativeZoneMod {
     public static final String MODID = "creativezone";
     public static final String VERSION = "1.0.2";
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     static int checkInterval;
     static int zoneRadius;
     static HashSet<String> whitelist = new HashSet<>();
 
-    @Mod.EventHandler
-    public void preInit(FMLPreInitializationEvent e) {
+    public CreativeZoneMod() {
+        final IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        modEventBus.register(this);
+        modEventBus.addListener(this::preInit);
+        MinecraftForge.EVENT_BUS.addListener(this::onServerStart);
 
-        Configuration config = new Configuration(new File(e.getModConfigurationDirectory(), "creativezone.cfg"));
-        config.load();
-
-        // Check interval (seconds)
-        checkInterval = config.getInt("ScanInterval", "config", 1, 1, 60,
-                "Sets the interval (in seconds) for scanning player locations");
-
-        // Creative zone radius
-        zoneRadius = config.getInt("ZoneRadius", "config", 25, 5, 1000,
-                "Sets the radius of the creative zone");
-
-        Property whiteListProp = config.get("config", "Whitelist", new String[0],
-                "Gets the list of whitelisted users");
-        for (String s : whiteListProp.getStringList()) {
-            whitelist.add(s);
-        }
-
-        config.save();
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, CreativeZoneConfig.COMMON_SPEC, MODID + ".toml");
+        modEventBus.register(CreativeZoneConfig.class);
     }
-    
-    @Mod.EventHandler
-    public void load(FMLInitializationEvent e)
-    {
+
+    public void preInit(final FMLCommonSetupEvent e) {
+        LOGGER.info("Creative Zone Mod {}",
+                JarVersionLookupHandler.getImplementationVersion(CreativeZoneMod.class));
+    }
+
+    public void onServerStart(final FMLServerStartingEvent e) {
+        CreativeZoneCommands.register(e.getCommandDispatcher());
         MinecraftForge.EVENT_BUS.register(new EventHandler());
-    }
-
-    @Mod.EventHandler
-    public void onServerStarted(FMLServerStartingEvent e)
-    {
-        e.registerServerCommand(new CreativeZoneCommands());
     }
 
     public static class EventHandler {
@@ -83,20 +73,19 @@ public class CreativeZoneMod {
 
         @SubscribeEvent
         public void onWorldTick(TickEvent.WorldTickEvent e) {
-            if (!e.world.isRemote && e.phase == TickEvent.Phase.START && e.world.provider.getDimension() == 0) {
+            if (!e.world.isRemote && e.phase == TickEvent.Phase.START && e.world.getDimension().isSurfaceWorld()) {
                 long now = Instant.now().getEpochSecond();
                 if (now - lastCheck > checkInterval) {
                     BlockPos spawn = e.world.getSpawnPoint();
-                    for (int i = 0; i < e.world.playerEntities.size(); i++)
-                    {
-                        EntityPlayer p = e.world.playerEntities.get(i);
+                    int zoneRadiusSq = zoneRadius * zoneRadius;
+                    for (ServerPlayerEntity p : e.world.getServer().getPlayerList().getPlayers()) {
                         // If the user is inside the zone radius, force them back to creative
-                        if (p.getDistance(spawn.getX(), p.posY, spawn.getZ()) < zoneRadius) {
+                        if (p.getDistanceSq(spawn.getX(), p.getPosY(), spawn.getZ()) < zoneRadiusSq) {
                             p.setGameType(GameType.CREATIVE);
                         } else {
                             // Otherwise, the user is outside the radius and we need to force
                             // them back to survival (assuming they're not on the whitelist)
-                            if (!whitelist.contains(p.getName())) {
+                            if (!whitelist.contains(p.getName().getString())) {
                                 p.setGameType(GameType.SURVIVAL);
                             }
                         }
@@ -106,5 +95,5 @@ public class CreativeZoneMod {
             }
         }
     }
-
 }
+

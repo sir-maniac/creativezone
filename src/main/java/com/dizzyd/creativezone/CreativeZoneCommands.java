@@ -1,122 +1,106 @@
 package com.dizzyd.creativezone;
 
-import net.minecraft.command.CommandBase;
-import net.minecraft.command.CommandException;
-import net.minecraft.command.ICommandSender;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.server.command.CommandTreeBase;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.builder.ArgumentBuilder;
+import net.minecraft.command.CommandSource;
+import net.minecraft.command.Commands;
+import net.minecraft.command.arguments.EntityArgument;
+import net.minecraft.util.text.TranslationTextComponent;
 
-public class CreativeZoneCommands extends CommandTreeBase {
+import java.util.List;
 
-    public CreativeZoneCommands() {
-        addSubcommand(new RadiusCmd());
-        addSubcommand(new WhitelistCmd());
+public class CreativeZoneCommands {
+    public static void register(CommandDispatcher<CommandSource> dispatcher) {
+        dispatcher.register(
+                Commands.literal("creativezone")
+                        .then(RadiusCmd.register())
+                        .then(WhitelistCmd.register())
+        );
     }
 
-    @Override
-    public String getName() {
-        return "creativezone";
+    public static class RadiusCmd  {
+        static ArgumentBuilder<CommandSource, ?> register() {
+            return Commands.literal("radius")
+                    .then(Commands.argument("newRadius", IntegerArgumentType.integer(25, 1000))
+                        //.requires(cs -> cs.hasPermissionLevel(2))
+                        .executes(ctx -> {
+                            int newRadius = IntegerArgumentType.getInteger(ctx, "newRadius");
+                            // Ok, we have a properly bounded radius; update the radius and save new config
+                            CreativeZoneMod.zoneRadius = newRadius;
+                            CreativeZoneConfig.Common.zoneRadius.set(newRadius);
+                            CreativeZoneConfig.Common.zoneRadius.save();
+                            ctx.getSource().sendFeedback(new TranslationTextComponent("creativezone.radius.set", newRadius), true);
+                            return 0;
+                    }))
+                    .executes(ctx -> {
+                        int zoneRadius = CreativeZoneMod.zoneRadius;
+                        // Display the current radius
+                        ctx.getSource().sendFeedback(new TranslationTextComponent("creativezone.radius", zoneRadius), true);
+                        return 0;
+                    });
+        }
     }
 
-    @Override
-    public String getUsage(ICommandSender sender) {
-        return "creativezone.usage";
-    }
-
-    public static class RadiusCmd extends CommandBase
-    {
-        @Override
-        public String getName() {
-            return "radius";
+    public static class WhitelistCmd {
+        static ArgumentBuilder<CommandSource, ?> register() {
+            return Commands.literal("whitelist")
+                    //.requires(cs -> cs.hasPermissionLevel(2))
+                    .then(Commands.literal("add")
+                        .then(Commands.argument("player", EntityArgument.player())
+                            .executes(ctx -> {
+                                String playerName = EntityArgument.getPlayer(ctx, "player").getName().getString();
+                                add(playerName);
+                                ctx.getSource().sendFeedback(new TranslationTextComponent("creativezone.whitelist.added", playerName), true);
+                                return 0;
+                            })))
+                    .then(Commands.literal("rm")
+                        .then(Commands.argument("player", EntityArgument.player())
+                            .executes(ctx -> {
+                                String playerName = EntityArgument.getPlayer(ctx, "player").getName().getString();
+                                remove(playerName);
+                                ctx.getSource().sendFeedback(new TranslationTextComponent("creativezone.whitelist.removed", playerName), true);
+                                return 0;
+                            })))
+                    .then(Commands.literal("clear")
+                            .executes(ctx -> {
+                                clear();
+                                ctx.getSource().sendFeedback(new TranslationTextComponent("creativezone.whitelist.cleared"), true);
+                                return 0;
+                            }))
+                    .executes(ctx -> {
+                        // No arguments provided; display all whitelisted users
+                        StringBuilder b = new StringBuilder();
+                        for (String k: CreativeZoneMod.whitelist) {
+                            b.append("\n* ").append(k);
+                        }
+                        ctx.getSource().sendFeedback(new TranslationTextComponent("creativezone.whitelist", b.toString()), true);
+                        return 0;
+                    });
         }
 
-        @Override
-        public String getUsage(ICommandSender sender) {
-            return "creativezone.radius.usage";
-        }
-
-        @Override
-        public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
-            if (args.length > 0) {
-                // User wishes to set the radius; parse the argument as a number
-                int newRadius = 0;
-                try {
-                    newRadius = Integer.valueOf(args[0]);
-                } catch (NumberFormatException e) {
-                    notifyCommandListener(sender, this, "creativezone.radius.set.invalidnumber");
-                    return;
-                }
-
-                if (newRadius < 25 || newRadius > 1000) {
-                    notifyCommandListener(sender, this, "creativezone.radius.set.invalidbounds");
-                    return;
-                }
-
-                // Ok, we have a properly bounded radius; update the radius and save new config
-                CreativeZoneMod.zoneRadius = newRadius;
-                notifyCommandListener(sender, this, "creativezone.radius.set", CreativeZoneMod.zoneRadius);
-            } else {
-                // Display the current radius
-                notifyCommandListener(sender, this, "creativezone.radius", CreativeZoneMod.zoneRadius);
+        @SuppressWarnings("unchecked")
+        private static void add(String name) {
+            if (!CreativeZoneMod.whitelist.contains(name)) {
+                CreativeZoneMod.whitelist.add(name);
+                ((List<String>)CreativeZoneConfig.Common.whitelist.get()).add(name);
+                CreativeZoneConfig.Common.whitelist.save();
             }
         }
-    }
 
-    public static class WhitelistCmd extends CommandBase {
-
-        private EntityPlayer findPlayer(MinecraftServer server, String name) {
-            return server.getPlayerList().getPlayerByUsername(name);
-        }
-
-        @Override
-        public String getName() {
-            return "whitelist";
-        }
-
-        @Override
-        public String getUsage(ICommandSender sender) {
-            return "creativezone.whitelist.usage";
-        }
-
-        @Override
-        public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
-            if (args.length < 1) {
-                // No arguments provided; display all whitelisted users
-                StringBuilder b = new StringBuilder();
-                for (String k: CreativeZoneMod.whitelist) {
-                    b.append("\n* ").append(k);
-                }
-                notifyCommandListener(sender, this, "creativezone.whitelist", b.toString());
-                return;
-            }
-
-            String subCommand = args[0];
-            switch (args[0]) {
-                case "add":
-                    if ((args.length < 2 || server.getPlayerList().getPlayerByUsername(args[1]) == null)) {
-                        notifyCommandListener(sender, this, "creativezone.whitelist.nouser");
-                    } else {
-                        CreativeZoneMod.whitelist.add(args[1]);
-                        notifyCommandListener(sender, this, "creativezone.whitelist.added", args[1]);
-                    }
-                    break;
-                case "rm":
-                    if ((args.length < 2 || server.getPlayerList().getPlayerByUsername(args[1]) == null)) {
-                        notifyCommandListener(sender, this, "creativezone.whitelist.nouser");
-                    } else {
-                        CreativeZoneMod.whitelist.remove(args[1]);
-                        notifyCommandListener(sender, this, "creativezone.whitelist.removed", args[1]);
-                    }
-                    break;
-                case "clear":
-                    CreativeZoneMod.whitelist.clear();
-                    notifyCommandListener(sender, this, "creativezone.whitelist.cleared");
-                    break;
-                default:
-                    notifyCommandListener(sender, this, "creativezone.whitelist.unknowncmd");
+        private static void remove(String name) {
+            if (CreativeZoneMod.whitelist.contains(name)) {
+                CreativeZoneMod.whitelist.remove(name);
+                CreativeZoneConfig.Common.whitelist.get().remove(name);
+                CreativeZoneConfig.Common.whitelist.save();
             }
         }
-    }
 
+        private static void clear() {
+            CreativeZoneMod.whitelist.clear();
+            CreativeZoneConfig.Common.whitelist.get().clear();
+            CreativeZoneConfig.Common.whitelist.save();
+        }
+
+    }
 }
