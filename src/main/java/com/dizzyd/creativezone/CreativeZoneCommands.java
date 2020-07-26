@@ -14,6 +14,7 @@ public class CreativeZoneCommands {
     public static void register(CommandDispatcher<CommandSource> dispatcher) {
         dispatcher.register(
                 Commands.literal("creativezone")
+                        .requires(cs -> cs.hasPermissionLevel(3))
                         .then(RadiusCmd.register())
                         .then(WhitelistCmd.register())
         );
