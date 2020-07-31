@@ -54,8 +54,8 @@ public class CreativeZoneConfig {
                     .comment("Sets the radius of the creative zone")
                     .defineInRange("ZoneRadius", 25, 5, 1000);
             whitelist = builder
-                        .comment("Gets the list of whitelisted users")
-                        .defineList("Whitelist", ArrayList::new, name -> ((String)name).length() > 0);
+                    .comment("Gets the list of whitelisted users")
+                    .defineList("Whitelist", ArrayList::new, name -> ((String)name).length() > 0);
 
         }
     }
