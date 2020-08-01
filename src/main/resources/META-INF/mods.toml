@@ -26,7 +26,7 @@ displayURL="https://www.curseforge.com/minecraft/mc-mods/creative-zone" #optiona
 # A text field displayed in the mod UI
 #credits="Thanks for this example mod goes to Java" #optional
 # A text field displayed in the mod UI
-authors="dizzyd" #optional
+authors="dizzyd, sir-maniac" #optional
 # The description text for the mod (multi line!) (#mandatory)
 description='''
   This mod creates a zone around spawn where all users are forced into creative mode. Leave the zone and it's back to survival.
