@@ -80,11 +80,14 @@ public class CreativeZoneMod {
                     for (ServerPlayerEntity p : e.world.getServer().getPlayerList().getPlayers()) {
                         // If the user is inside the zone radius, force them back to creative
                         if (p.getDistanceSq(spawn.getX(), p.getPosY(), spawn.getZ()) < zoneRadiusSq) {
-                            p.setGameType(GameType.CREATIVE);
+                            // ignore other game modes to ensure compatibility
+                            if (isSurvival(p)) {
+                                p.setGameType(GameType.CREATIVE);
+                            }
                         } else {
                             // Otherwise, the user is outside the radius and we need to force
                             // them back to survival (assuming they're not on the whitelist)
-                            if (!whitelist.contains(p.getName().getString())) {
+                            if (p.isCreative() && !whitelist.contains(p.getName().getString())) {
                                 p.setGameType(GameType.SURVIVAL);
                             }
                         }
@@ -93,6 +96,10 @@ public class CreativeZoneMod {
                 }
             }
         }
+    }
+
+    private static boolean isSurvival(ServerPlayerEntity p) {
+        return p.interactionManager.getGameType() == GameType.SURVIVAL;
     }
 }
 
